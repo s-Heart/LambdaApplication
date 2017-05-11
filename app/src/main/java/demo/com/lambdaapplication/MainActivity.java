@@ -9,11 +9,17 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import rx.Observable;
 import rx.Subscriber;
 import rx.android.schedulers.AndroidSchedulers;
+import rx.functions.Func1;
+import rx.schedulers.Schedulers;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -25,6 +31,10 @@ public class MainActivity extends AppCompatActivity {
     private Button btn3;
     private Button btnSend;
     private EditText ed3;
+    private Button btnMap;
+    private Button btnFlatMap;
+    private Button btnFilter;
+    private long firstTime;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +54,131 @@ public class MainActivity extends AppCompatActivity {
         ed3 = (EditText) findViewById(R.id.editText3);
         btnSend = (Button) findViewById(R.id.btn_send);
         initSend();
+
+        btnMap = (Button) findViewById(R.id.btn_map);
+        btnMap.setOnClickListener(v -> mapTest());
+
+        btnFlatMap = (Button) findViewById(R.id.btn_flat_map);
+        btnFlatMap.setOnClickListener(v -> flatMapTest());
+
+        btnFilter = (Button) findViewById(R.id.btn_filter);
+        btnFilter.setOnClickListener(v -> filter());
+    }
+
+    private void filter() {
+        List<String> list = new ArrayList<>();
+        list.add("tony");
+        list.add("test");
+        list.add("data");
+        //筛选出序列流里的需要的数据
+        Observable.from(list)
+                .filter(user -> user.startsWith("t"))
+                .subscribe(new Subscriber<String>() {
+                    @Override
+                    public void onCompleted() {
+
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+
+                    }
+
+                    @Override
+                    public void onNext(String result) {
+                        Toast.makeText(MainActivity.this, "filter:" + result, Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+
+    private void flatMapTest() {
+        Observable.create(
+                (Observable.OnSubscribe<Map<String, String>>) subscriber -> {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    Map<String, String> initMap = new HashMap<>();
+                    initMap.put("Observable", "0");
+//                    subscriber.onNext(initMap);
+                    subscriber.onError(null);
+                })
+                .flatMap(new Func1<Map<String, String>, Observable<Map<String, String>>>() {
+                    @Override
+                    public Observable<Map<String, String>> call(Map<String, String> initMap) {
+                        return Observable.create(subscriber -> {
+                            initMap.put("Observable2", "handle");
+//                            subscriber.onNext(initMap);
+                            subscriber.onError(null);
+                        });
+                    }
+                })
+                .onErrorResumeNext(throwable -> {
+                    Map<String, String> errMap = new HashMap<>();
+                    return Observable.create(subscriber -> {
+                        errMap.put("errMap", "handle");
+                        subscriber.onNext(errMap);
+                    });
+                })
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Subscriber<Map<String, String>>() {
+                    @Override
+                    public void onCompleted() {
+
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                    }
+
+                    @Override
+                    public void onNext(Map<String, String> resultMap) {
+                        Toast.makeText(MainActivity.this, "result:" + resultMap, Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+
+    private void mapTest() {
+        //1.create getToken observable
+        Observable.create(
+                (Observable.OnSubscribe<Map<String, String>>) subscriber -> {
+                    //2.do net request
+                    try {
+                        Thread.sleep(1000);
+                        Log.d("thread----onSubscribe", Thread.currentThread().getName());
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    Map<String, String> params = new HashMap<>();
+                    params.put("access_token", "i am token");
+                    subscriber.onNext(params);
+                })
+                .map(tokenMap -> {
+                    //3.do net get userinfo
+                    Log.d("thread----map", Thread.currentThread().getName());
+                    tokenMap.put("user_name", "tony");
+                    return tokenMap;
+                })
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Subscriber<Map<String, String>>() {
+                    @Override
+                    public void onCompleted() {
+
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+
+                    }
+
+                    @Override
+                    public void onNext(Map<String, String> resultMap) {
+                        Toast.makeText(MainActivity.this, "result:" + resultMap, Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
 
     private void initSend() {
